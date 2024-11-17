@@ -1,6 +1,6 @@
 {
   "name": "@afyercu/nest-wechat",
-  "version": "0.2.50",
+  "version": "0.2.51",
   "description": "nestjs module for wechat server-side api.",
   "scripts": {
     "build": "rimraf -rf dist && tsc -p tsconfig.json",

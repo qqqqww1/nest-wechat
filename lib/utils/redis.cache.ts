@@ -20,11 +20,12 @@ export class RedisCache implements ICache {
       throw new Error('empty key');
     }
     key = this.namespace + key;
-    let value = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let value = {} as any;
     try {
       value = await this.cache.get<T>(key) as T;
       if (!value) {
-        value = {};
+        value = {} as T;
       }
     } catch (error) {
       value = {};

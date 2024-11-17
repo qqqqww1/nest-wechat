@@ -6,6 +6,7 @@ import forge from 'node-forge';
 import getRawBody from 'raw-body';
 
 import {
+  APPPayRequest,
   CallbackBody,
   CallbackResource,
   CertificateResult,
@@ -74,6 +75,26 @@ export class WePayService {
   }
 
   /**
+   * 统一下单接口
+   * @param type 支付类型: jsapi/h5/native/app
+   * @param order 下单信息
+   * @param serialNo 私钥序列号
+   * @param privateKey 私钥
+   * @returns 
+   * @link https://pay.weixin.qq.com/wiki/doc/apiv3/apis/chapter3_5_1.shtml
+   */
+  async unifiedOrder<T> (type: 'jsapi' | 'h5' | 'native' | 'app', order: TransactionOrder, serialNo: string, privateKey: Buffer | string) {
+    const nonceStr = createNonceStr();
+    const timestamp = Math.floor(Date.now() / 1000);
+    let url = `/v3/pay/transactions/${type}`;
+    const signature = this.generateSignature('POST', url, timestamp, nonceStr, privateKey, order);
+    url = 'https://api.mch.weixin.qq.com' + url;
+    return axios.post<T>(url, order, {
+      headers: this.generateHeader(order.mchid, nonceStr, timestamp, serialNo, signature),
+    });
+  }
+
+  /**
    * JSAPI下单
    * @param order 下单信息
    * @param serialNo 私钥序列号
@@ -82,14 +103,43 @@ export class WePayService {
    * @link https://pay.weixin.qq.com/wiki/doc/apiv3/apis/chapter3_5_1.shtml
    */
   async jsapi (order: TransactionOrder, serialNo: string, privateKey: Buffer | string) {
-    const nonceStr = createNonceStr();
-    const timestamp = Math.floor(Date.now() / 1000);
-    let url = '/v3/pay/transactions/jsapi';
-    const signature = this.generateSignature('POST', url, timestamp, nonceStr, privateKey, order);
-    url = 'https://api.mch.weixin.qq.com' + url;
-    return axios.post<{ prepay_id: string }>(url, order, {
-      headers: this.generateHeader(order.mchid, nonceStr, timestamp, serialNo, signature),
-    });
+    return this.unifiedOrder<{ prepay_id: string }>('jsapi', order, serialNo, privateKey);
+  }
+
+  /**
+   * H5下单
+   * @param order 下单信息
+   * @param serialNo 私钥序列号
+   * @param privateKey 私钥
+   * @returns 
+   * @link https://pay.weixin.qq.com/wiki/doc/apiv3/apis/chapter3_3_1.shtml
+   */
+  async h5 (order: TransactionOrder, serialNo: string, privateKey: Buffer | string) {
+    return this.unifiedOrder<{ h5_url: string }>('h5', order, serialNo, privateKey);
+  }
+
+  /**
+   * Native下单
+   * @param order 下单信息
+   * @param serialNo 私钥序列号
+   * @param privateKey 私钥
+   * @returns 
+   * @link https://pay.weixin.qq.com/wiki/doc/apiv3/apis/chapter3_4_1.shtml
+   */
+  async native (order: TransactionOrder, serialNo: string, privateKey: Buffer | string) {
+    return this.unifiedOrder<{ code_url: string }>('native', order, serialNo, privateKey);
+  }
+
+  /**
+   * APP下单
+   * @param order 下单信息
+   * @param serialNo 私钥序列号
+   * @param privateKey 私钥
+   * @returns 
+   * @link https://pay.weixin.qq.com/wiki/doc/apiv3/apis/chapter3_2_1.shtml
+   */
+  async app (order: TransactionOrder, serialNo: string, privateKey: Buffer | string) {
+    return this.unifiedOrder<{ prepay_id: string }>('app', order, serialNo, privateKey);
   }
 
   /**
@@ -109,12 +159,6 @@ export class WePayService {
     return axios.post<{ prepay_id: string }>(url, order, {
       headers: this.generateHeader(order.sp_mchid, nonceStr, timestamp, serialNo, signature),
     });
-  }
-
-  private async h5 () {
-    // H5下单
-    // https://pay.weixin.qq.com/wiki/doc/apiv3/apis/chapter3_3_1.shtml
-    // https://api.mch.weixin.qq.com/v3/pay/transactions/h5
   }
 
   /**
@@ -1012,6 +1056,30 @@ export class WePayService {
       package: `prepay_id=${prepayId}`,
       signType: 'RSA',
       paySign,
+    };
+  }
+  /**
+   * 构造 APP 拉起支付参数
+   * @param appId 商户申请的应用对应的AppID，由微信支付生成，可在商户平台查看。
+   * @param mchId 商户号
+   * @param prepayId APP下单生成的prepay_id
+   * @param privateKey 微信支付私钥
+   * @returns APPPayRequest
+   * @link https://pay.weixin.qq.com/wiki/doc/apiv3/apis/chapter3_2_4.shtml
+   */
+  buildAPPPayment (appId: string, mchId: string, prepayId: string, privateKey: Buffer | string): APPPayRequest {
+    const nonceStr = createNonceStr();
+    const timestamp = Math.floor(Date.now() / 1000);
+    const message = `${appId}\n${timestamp}\n${nonceStr}\n${prepayId}\n`;
+    const paySign = crypto.createSign('sha256WithRSAEncryption').update(message).sign(privateKey, 'base64');
+    return {
+      appId,
+      partnerId: mchId,
+      prepayId,
+      packageValue: 'Sign=WXPay',
+      nonceStr,
+      timeStamp: timestamp.toString(),
+      sign: paySign,
     };
   }
 

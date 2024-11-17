@@ -199,6 +199,16 @@ export interface JSAPIPayRequest extends MiniProgramPayRequest {
   appId: string;
 }
 
+export interface APPPayRequest {
+  appId: string;
+  partnerId: string;
+  prepayId: string;
+  packageValue: 'Sign=WXPay';
+  nonceStr: string;
+  timeStamp: string;
+  sign: string;
+}
+
 /**
  * @deprecated 请使用 MiniProgramPayRequest
  */
